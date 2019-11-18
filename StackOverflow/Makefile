@@ -13,7 +13,7 @@ endif
 
 LIBS		= -lpthread
 
-all: StackOverflow StackOverflowNX
+all: StackOverflow StackOverflowNX StackOverflowSP
 
 StackOverflow: StackOverflow.c
 	$(CC) -o $@  $(CFLAGS) -fno-stack-protector -z execstack -D_FORTIFY_SOURCE=0 $<
@@ -21,9 +21,12 @@ StackOverflow: StackOverflow.c
 StackOverflowNX: StackOverflow.c
 	$(CC) -o $@  $(CFLAGS) -fno-stack-protector -D_FORTIFY_SOURCE=0 $<
 
+StackOverflowSP: StackOverflow.c
+	$(CC) -o $@  $(CFLAGS) -D_FORTIFY_SOURCE=0 $<
+
 clean:
 	rm -rf ./*.o
 
 cleanall:
-	rm -rf ./*.o ./StackOverflow ./StackOverflowNX
+	rm -rf ./*.o ./StackOverflow ./StackOverflowNX ./StackOverflowSP
 
