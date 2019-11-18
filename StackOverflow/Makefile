@@ -1,29 +1,29 @@
-build ?= release
-
-srcdir		= .
+build ?= stackoverflownx
 
 CC		= gcc
 CPP		= g++
 
-CFLAGS		= -c -fno-stack-protector -z execstack -D_FORTIFY_SOURCE=0
-ifeq "$(build)" "debug"
-	CFLAGS += -g 
+CFLAGS		= 
+LDFLAGS = 
+ifeq "$(build)" "stackoverflow"
+	CFLAGS += -g
+else ifeq "$(build)" "stackoverflownx"
+	CFLAGS += -g
 endif
 
-ifeq "$(build)" "debug"
-	LDFLAGS		= 
-else
-	LDFLAGS		= 
-endif
 LIBS		= -lpthread
 
+all: StackOverflow StackOverflowNX
 
-StackOverflow: StackOverflow.o
-	$(CC) -o $@  $<
+StackOverflow: StackOverflow.c
+	$(CC) -o $@  $(CFLAGS) -fno-stack-protector -z execstack -D_FORTIFY_SOURCE=0 $<
 
-StackOverflow.o: StackOverflow.c
-	$(CC) -o $@  $(CFLAGS) $(SHARED_CFLAGS) $<
-
+StackOverflowNX: StackOverflow.c
+	$(CC) -o $@  $(CFLAGS) -fno-stack-protector -D_FORTIFY_SOURCE=0 $<
 
 clean:
-	rm -rf ./StackOverflow ./StackOverflow.o
+	rm -rf ./*.o
+
+cleanall:
+	rm -rf ./*.o ./StackOverflow ./StackOverflowNX
+
